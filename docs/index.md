@@ -34,7 +34,9 @@ Your App  →  AI Gateway  →  Upstream LLM
 
 ## Quick Links
 
+- **[Quickstart](/quickstart)** — Self-host the gateway and send your first request
 - **[Getting Started](/getting-started)** — Log in, understand the UI
 - **[Integration Guide](/integration)** — Connect your app in 5 minutes
+- **[CLI (`aigw`)](/cli)** — SSO login and gateway-key injection for any SDK
 - **[API Keys](/api-keys)** — Create your first key
 - **[Provider Keys](/upstreams)** — Connect your LLM providers

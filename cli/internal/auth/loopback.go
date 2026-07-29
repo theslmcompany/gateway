@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"html/template"
 	"net"
 	"net/http"
 	"net/url"
@@ -62,7 +63,12 @@ func BrowserLogin(ctx context.Context, endpoint, provider string) (string, error
 		}
 	})
 
-	srv := &http.Server{Handler: mux}
+	srv := &http.Server{
+		Handler: mux,
+		// Bounded so a stalled connection can't hold the listener open for the
+		// full login window (slowloris, gosec G112).
+		ReadHeaderTimeout: 10 * time.Second,
+	}
 	go func() { _ = srv.Serve(ln) }()
 	defer func() {
 		shutCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -98,7 +104,10 @@ func randHex(n int) (string, error) {
 
 func resultPage(w http.ResponseWriter, msg string) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	// msg can carry the `error` query parameter straight from the callback URL,
+	// so it must be escaped — otherwise a crafted login link reflects script
+	// into this page, on the loopback origin holding the session token.
 	fmt.Fprintf(w, `<!doctype html><html><head><title>aigw login</title></head>`+
 		`<body style="font-family:system-ui,sans-serif;text-align:center;padding-top:4rem">`+
-		`<h2>%s</h2></body></html>`, msg)
+		`<h2>%s</h2></body></html>`, template.HTMLEscapeString(msg))
 }

@@ -113,7 +113,9 @@ func Set(key, value string) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	// 0700: this directory also holds the encrypted-file keyring backend, so it
+	// must not be readable by other local users.
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("create config dir: %w", err)
 	}
 	path, _ := FilePath()

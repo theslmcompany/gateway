@@ -85,6 +85,8 @@ func GenerateSecret() (string, error) {
 // Submit starts background execution of an already-persisted task row.
 // The caller has already returned 202 to the client; do not block here.
 func (d *Dispatcher) Submit(parent context.Context, task *db.AsyncTask, secret string) {
+	// #nosec G118 -- deliberate: the request context is cancelled the moment
+	// the 202 is written, which would kill the task we just accepted.
 	go d.execute(context.Background(), task.ID, secret)
 }
 

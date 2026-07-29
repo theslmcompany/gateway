@@ -216,6 +216,24 @@ React 19 + Vite + Tailwind v4 + shadcn/ui + TanStack React Query.
 
 ---
 
+## Security Rules
+
+Non-negotiable. Apply to every change in this repo.
+
+1. **Treat all user input as hostile until validated.** Never interpolate user input directly into SQL, shell commands, HTML, or LLM prompts. Use parameterized queries and proper escaping.
+2. **Never hardcode secrets.** API keys, DB passwords, JWT secrets, and webhook tokens come from environment variables. New secret → add a placeholder to `.env.example` and tell me the real value it needs.
+3. **Every endpoint needs both authentication and authorization.** Who is the user (authn) *and* is this user allowed to access this specific resource (authz). State both checks explicitly in code. Never assume one implies the other.
+4. **BaaS row-level security on by default.** With Supabase, Firebase, or any backend-as-a-service with row-level controls, enable RLS and write the policies. Do not generate CRUD that relies on `select *` against unprotected tables.
+5. **Never log secrets.** No full tokens, passwords, full credit-card numbers, or full session IDs in logs. Redact sensitive fields when logging request data.
+6. **Explicit CORS origins.** Never `Access-Control-Allow-Origin: *` for endpoints that handle authenticated requests.
+7. **Bound all inputs:** max request size, max array length, max string length, request timeout. Pick reasonable defaults and state them in code.
+8. **Verify third-party packages exist.** Before suggesting one, recall its current maintainers and last release date. If not confident it's real and maintained, say so.
+9. **Install via the package manager's official command** — never hand-edit `package.json`, `requirements.txt`, `pyproject.toml`, `Cargo.toml`, `go.mod`, or any manifest directly (hand-editing skips lockfile resolution → typosquat/slopsquat risk). Do **not** use `@latest`: newest versions are highest-risk (compromised maintainers, slopsquats, malicious updates surface in fresh releases first — cf. the Sept 2025 chalk/debug npm hijack). Before installing, check three things: version is ≥48 hours old, has meaningful download history, maintainer account is not brand-new. Pin a specific version (`<pkg>@1.2.3`, not `@latest`), commit the lockfile, treat upgrades as deliberate decisions.
+10. **Document security assumptions inline.** Code handling authentication, payments, file uploads, or user-to-user interaction gets a brief comment block at the top of the function stating its security assumptions and the threats it defends against.
+11. **Threat-model before coding.** Briefly state what could go wrong from a security standpoint, then write the code with those threats in mind.
+
+---
+
 ## Infrastructure (Docker Compose)
 
 Services split into two profiles:

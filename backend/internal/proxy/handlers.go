@@ -602,10 +602,7 @@ func (s *Server) buildUpstreamRequest(ctx context.Context, endpoint *llmrouter.E
 				if m.Role == "system" {
 					req.System = m.Content
 				} else {
-					req.Messages = append(req.Messages, anthropicMsg{
-						Role:    m.Role,
-						Content: m.Content,
-					})
+					req.Messages = append(req.Messages, anthropicMsg(m))
 				}
 			}
 			forwardBody, _ = json.Marshal(req)

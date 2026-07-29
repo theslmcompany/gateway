@@ -1,2 +1,27 @@
 allowBuilds:
   esbuild: true
+
+# Security overrides — E13.S6. Everything flagged in this workspace arrives via
+# vitepress and is build-time / dev-server only; nothing here ships to a
+# browser (the built docs are static files served by nginx).
+overrides:
+  postcss: '>=8.5.18'
+
+# Accepted risk — vite GHSA advisories (`server.fs.deny` bypass on Windows
+# alternate paths, and two dev-server moderates). Fixed only in vite >=6.4.3,
+# but vitepress 1.6.4 depends on vite ^5.4.14 and 6.x/8.x switch to rolldown,
+# which breaks the vitepress build; vitepress 2 is still alpha. All three are
+# reachable only through `vitepress dev` on a developer machine — never in CI
+# (`vitepress build`) and never in production. Revisit when vitepress 2 ships.
+
+# Accepted-risk allowlist for the CI audit gate. Each entry needs a written
+# justification; anything not listed here fails the build.
+auditConfig:
+  ignoreGhsas:
+    # vite / esbuild dev-server advisories — see the note above. Reachable only
+    # via `vitepress dev` on a developer machine, and pinned out of reach by
+    # vitepress 1.6.4's `vite ^5.4.14` dependency.
+    - GHSA-fx2h-pf6j-xcff # vite: server.fs.deny bypass on Windows alt paths
+    - GHSA-4w7w-66w2-5vf9 # vite: dev-server request handling
+    - GHSA-v6wh-96g9-6wx3 # vite: dev-server request handling
+    - GHSA-67mh-4wv8-2f99 # esbuild: dev-server CORS

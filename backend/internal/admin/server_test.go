@@ -1350,3 +1350,38 @@ func TestHandleSelfServeTenant_MissingName(t *testing.T) {
 	router.ServeHTTP(rr, req)
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 }
+
+// TestTenantAPIKeyNeverSerialized guards the tenant credential-disclosure fix:
+// Tenant.APIKey is the plaintext of a live gateway key, so no admin handler may
+// return it. Without json:"-" every member of a tenant received a working proxy
+// credential from these endpoints, regardless of their keys.read permission.
+func TestTenantAPIKeyNeverSerialized(t *testing.T) {
+	const secret = "sk-gw-plaintext-must-not-leak"
+
+	database := setupTestDB(t)
+	router := NewRouter(testCfg(), database, llmrouter.New([]config.UpstreamConfig{}), nil, nil, nil, nil)
+
+	tenant := db.Tenant{Name: "leaky", APIKey: secret}
+	require.NoError(t, database.Create(&tenant).Error)
+
+	for _, path := range []string{"/api/v1/tenants", fmt.Sprintf("/api/v1/tenants/%d/", tenant.ID)} {
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, authRequest(t, httptest.NewRequest(http.MethodGet, path, nil)))
+		require.Equal(t, http.StatusOK, rr.Code, path)
+		assert.NotContains(t, rr.Body.String(), secret, "%s leaked the tenant API key", path)
+	}
+
+	// The create path mints its own key — assert it is withheld there too.
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, authRequest(t, httptest.NewRequest(
+		http.MethodPost, "/api/v1/tenants", bytes.NewBufferString(`{"name":"fresh"}`))))
+	require.Equal(t, http.StatusCreated, rr.Code)
+
+	var created db.Tenant
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &created))
+
+	var stored db.Tenant
+	require.NoError(t, database.First(&stored, created.ID).Error)
+	require.NotEmpty(t, stored.APIKey, "tenant should still be provisioned with a key")
+	assert.NotContains(t, rr.Body.String(), stored.APIKey, "create response leaked the tenant API key")
+}

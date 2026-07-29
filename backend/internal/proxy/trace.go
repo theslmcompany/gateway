@@ -3,6 +3,7 @@ package proxy
 import (
 	"net/http"
 
+	"github.com/go-chi/chi/v5/middleware"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -19,12 +20,17 @@ func agentTraceMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		tc := TenantCtx(r.Context())
 
-		ctx, agentSpan := tracer.Start(r.Context(), "agent",
-			trace.WithAttributes(
-				attribute.String("agent.id", tc.AgentID),
-				attribute.String("tenant.id", tc.TenantID),
-			),
-		)
+		attrs := []attribute.KeyValue{
+			attribute.String("agent.id", tc.AgentID),
+			attribute.String("tenant.id", tc.TenantID),
+		}
+		// Set only by clientIPMiddleware, which resolves it against the
+		// configured trust boundary — never straight off a client header.
+		if ip := middleware.GetClientIP(r.Context()); ip != "" {
+			attrs = append(attrs, attribute.String("client.address", ip))
+		}
+
+		ctx, agentSpan := tracer.Start(r.Context(), "agent", trace.WithAttributes(attrs...))
 		defer agentSpan.End()
 
 		ctx, threadSpan := tracer.Start(ctx, "thread",

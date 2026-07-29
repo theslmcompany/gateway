@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"time"
@@ -41,13 +42,19 @@ func openKeyring() (keyring.Keyring, error) {
 	if err != nil {
 		return nil, err
 	}
-	return keyring.Open(keyring.Config{
+	cfg := keyring.Config{
 		ServiceName:              keyringService,
 		KeychainName:             keyringService,
 		KeychainTrustApplication: true,
 		FileDir:                  filepath.Join(dir, "keyring"),
 		FilePasswordFunc:         filePassword,
-	})
+	}
+	// AIGW_KEYRING_BACKEND pins the backend — needed on headless machines
+	// where the auto-detected secret service is unusable (e.g. `file`).
+	if b := os.Getenv("AIGW_KEYRING_BACKEND"); b != "" {
+		cfg.AllowedBackends = []keyring.BackendType{keyring.BackendType(b)}
+	}
+	return keyring.Open(cfg)
 }
 
 // filePassword supplies the passphrase for the encrypted file backend. It
@@ -102,7 +109,7 @@ func Clear() error {
 	if err != nil {
 		return err
 	}
-	if err := kr.Remove(credItemKey); err != nil && !errors.Is(err, keyring.ErrKeyNotFound) {
+	if err := kr.Remove(credItemKey); err != nil && !isNotFound(err) {
 		return fmt.Errorf("clear credentials: %w", err)
 	}
 	return nil
@@ -163,7 +170,7 @@ func ClearProxyKey(tenant string) error {
 	if err != nil {
 		return err
 	}
-	if err := kr.Remove(proxyKeyItem(tenant)); err != nil && !errors.Is(err, keyring.ErrKeyNotFound) {
+	if err := kr.Remove(proxyKeyItem(tenant)); err != nil && !isNotFound(err) {
 		return fmt.Errorf("clear cached proxy key: %w", err)
 	}
 	return nil
@@ -171,5 +178,13 @@ func ClearProxyKey(tenant string) error {
 
 // ErrProxyKeyNotCached reports whether err means no proxy key is cached.
 func ErrProxyKeyNotCached(err error) bool {
-	return errors.Is(err, keyring.ErrKeyNotFound)
+	return isNotFound(err)
+}
+
+// isNotFound normalises "no such item" across keyring backends. The encrypted
+// file backend surfaces a raw fs.ErrNotExist from Remove instead of
+// keyring.ErrKeyNotFound, which would otherwise make `aigw logout` fail when
+// there is nothing to remove.
+func isNotFound(err error) bool {
+	return errors.Is(err, keyring.ErrKeyNotFound) || errors.Is(err, fs.ErrNotExist)
 }

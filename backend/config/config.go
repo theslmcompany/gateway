@@ -5,8 +5,10 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log/slog"
+	"net/netip"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -23,6 +25,37 @@ type Config struct {
 	Upstreams  []UpstreamConfig
 	MLRunner   MLRunnerConfig
 	OIDC       OIDCConfig
+	Network    NetworkConfig
+}
+
+// NetworkConfig describes what sits in front of the gateway, which decides
+// whether forwarded-for headers may be trusted for the client IP.
+//
+// Nothing set (the default) means the gateway is treated as internet-facing:
+// the client IP comes from the TCP peer address and every `X-Forwarded-For`
+// / `X-Real-IP` header is ignored. That is the only safe default — a
+// spoofable client IP would poison telemetry and any IP-keyed rate limiting.
+type NetworkConfig struct {
+	// TrustedProxyCIDRs (TRUSTED_PROXY_CIDRS) enumerates the reverse proxies
+	// in front of the gateway, e.g. "10.0.0.0/8,2400:cb00::/32". The client
+	// IP is the rightmost X-Forwarded-For entry outside these ranges.
+	// Preferred over TrustedProxyCount — it survives topology changes.
+	TrustedProxyCIDRs []string
+
+	// TrustedProxyCount (TRUSTED_PROXY_COUNT) is the exact number of proxy
+	// hops in front of the gateway, for use when their addresses are dynamic
+	// (autoscaled LBs, ephemeral CDN edges). Ignored when CIDRs are set.
+	TrustedProxyCount int
+
+	// TrustedClientIPHeader (TRUSTED_CLIENT_IP_HEADER) names a single-IP
+	// header the proxy unconditionally overwrites, e.g. "CF-Connecting-IP"
+	// or "X-Real-IP". Takes precedence over the XFF-based options.
+	TrustedClientIPHeader string
+}
+
+// Configured reports whether any trusted-proxy setting was supplied.
+func (n NetworkConfig) Configured() bool {
+	return n.TrustedClientIPHeader != "" || len(n.TrustedProxyCIDRs) > 0 || n.TrustedProxyCount > 0
 }
 
 // OIDCConfig holds OIDC provider settings. A provider is enabled only when
@@ -96,7 +129,12 @@ type PostgresConfig struct {
 }
 
 func Load() (*Config, error) {
+	network, err := loadNetwork()
+	if err != nil {
+		return nil, err
+	}
 	return &Config{
+		Network:   network,
 		Env:       env("ENV", "prod"),
 		ProxyPort: intEnv("PROXY_PORT", 8080),
 		AdminPort: intEnv("ADMIN_PORT", 8081),
@@ -147,6 +185,36 @@ func Load() (*Config, error) {
 			Enabled:   boolEnv("MLRUNNER_ENABLED", true),
 		},
 	}, nil
+}
+
+// loadNetwork reads the trusted-proxy settings, failing fast on a malformed
+// CIDR or hop count rather than silently falling back to a trust-nothing
+// (or worse, trust-everything) posture.
+func loadNetwork() (NetworkConfig, error) {
+	n := NetworkConfig{
+		TrustedClientIPHeader: os.Getenv("TRUSTED_CLIENT_IP_HEADER"),
+	}
+
+	for _, raw := range strings.Split(os.Getenv("TRUSTED_PROXY_CIDRS"), ",") {
+		cidr := strings.TrimSpace(raw)
+		if cidr == "" {
+			continue
+		}
+		if _, err := netip.ParsePrefix(cidr); err != nil {
+			return NetworkConfig{}, fmt.Errorf("TRUSTED_PROXY_CIDRS: invalid CIDR %q: %w", cidr, err)
+		}
+		n.TrustedProxyCIDRs = append(n.TrustedProxyCIDRs, cidr)
+	}
+
+	if v := os.Getenv("TRUSTED_PROXY_COUNT"); v != "" {
+		count, err := strconv.Atoi(v)
+		if err != nil || count < 1 {
+			return NetworkConfig{}, fmt.Errorf("TRUSTED_PROXY_COUNT: want a positive integer, got %q", v)
+		}
+		n.TrustedProxyCount = count
+	}
+
+	return n, nil
 }
 
 // loadUpstreams reads UPSTREAM_N_* env vars (N=0..9) until a gap is found.
