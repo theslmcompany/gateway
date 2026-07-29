@@ -19,3 +19,11 @@ sentencepiece==0.2.1
 # protobuf 5.29.6: JSON recursion depth bypass (CVE-2026-0994) and
 # DoS (CVE-2025-4565).
 protobuf==5.29.6
+
+# Transitive (transformers -> huggingface_hub -> requests -> idna), pinned
+# because resolvers disagree: pip takes the newest compatible idna, while
+# Dependabot and osv-scanner assume the *minimum* satisfying version — 3.9.0,
+# which carries GHSA-65pc-fj4g-8rjx (IDNA denial of service, fixed in 3.15).
+# pip-audit reported clean here precisely because it resolved the way pip does.
+# An explicit floor makes the safe version true under every resolver.
+idna==3.18

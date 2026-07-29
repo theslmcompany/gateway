@@ -25,3 +25,10 @@
 
 # backend/internal/auth/keys_test.go — key-parser fixture
 f7e120c7a3301ee800d57902b4f308fefaa5e7fb:backend/internal/auth/keys_test.go:stripe-access-token:41
+
+# Firebase web API key. A client-side identifier, not a secret: the SDK ships
+# it in the browser bundle by design, and access is governed by Security Rules
+# plus API-key restrictions in the GCP console. (Second entry is the landing
+# app's pre-rename path, still reachable in history.)
+95de0fe4d5e8ace19c5202c2c42b1810492df01b:frontend/src/firebase.ts:gcp-api-key:6
+5a4a0c1bbd4c975f99875ca17eae2fe23af03982:ai-gateway-landing/src/firebase.ts:gcp-api-key:5

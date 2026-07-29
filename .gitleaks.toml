@@ -23,16 +23,14 @@
 [extend]
 useDefault = true
 
-[[allowlists]]
-description = """
-Firebase web API key. A client-side identifier, not a secret: the Firebase SDK
-ships it in the browser bundle by design, and access is governed by Security
-Rules plus API-key restrictions in the GCP console, not by keeping the value
-private. Anchored to this one key, so any other AIza... value — a real GCP
-service key, for instance — still fails.
-"""
-regexTarget = "secret"
-regexes = ['''^AIzaSyAkKBBQg00PVBR8-RPiQatD-UQaMCYoJP4$''']
+# The Firebase web API key in frontend/src/firebase.ts and
+# landing/src/firebase.ts is likewise allowlisted by fingerprint in
+# .gitleaksignore, not by value here, for the same reason.
+#
+# It is a client-side identifier rather than a secret — the Firebase SDK ships
+# it in the browser bundle by design, and access is governed by Security Rules
+# plus API-key restrictions in the GCP console, not by keeping the value
+# private — but there is still no reason to copy it into this file.
 
 [[allowlists]]
 description = """
