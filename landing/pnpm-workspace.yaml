@@ -20,6 +20,8 @@ overrides:
   '@protobufjs/utf8': '>=1.1.1'
   brace-expansion: '>=5.0.8'
   js-yaml: '>=4.3.0'
+  # Dev-only, via eslint-plugin-react-hooks. GHSA-4x5r-pxfx-6jf8.
+  '@babel/core': '>=7.29.6'
 
 # Accepted-risk allowlist for the CI audit gate. Each entry must have a written
 # justification above; anything not listed here fails the build.

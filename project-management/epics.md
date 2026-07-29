@@ -290,7 +290,7 @@ internal/mcp/
 
 ## Epic 13: Vulnerability Scanning & Dependency Remediation
 **Goal:** Get to a known-clean dependency and code baseline, then keep it clean automatically. Scan every ecosystem in the repo (Go × 2 modules, JS × 3 workspaces, Python sidecar, container images), remediate what is reachable, and gate CI so regressions can't merge.
-**Status:** **Remediation pass complete (2026-07-29).** Both Go modules are `govulncheck`-clean and SAST-clean, the Python sidecar is assessed and patched, all three JS workspaces pass a High-and-above audit gate, and `.github/workflows/security-scan.yml` blocks regressions. Only S8 (image scanning never executed locally) and S11 (GitHub push protection is a repo setting) remain partial; S10 is untouched.
+**Status:** **Remediation pass complete (2026-07-29).** Both Go modules are `govulncheck`-clean and SAST-clean, the Python sidecar is assessed and patched, all three JS workspaces pass a High-and-above audit gate, and `.github/workflows/security-scan.yml` blocks regressions. S8 (base images pinned to tags, not digests), S10 (Dependabot running, but no config file) and S11 (**gitleaks CI job currently disabled**) remain partial.
 
 **Relationship to Epic 7:** E13 is the *do it now* remediation pass; E7.S4 (Vulnerability Scanning) is the compliance-framing of the same CI gate. E13.S1 now ships that gate — E7.S4's SAST half is satisfied by it. Do not build two pipelines. DAST is still unbuilt and stays scoped to E7.S4.
 
@@ -330,6 +330,34 @@ internal/mcp/
 **Two image builds were broken by this pass and are now fixed.** Building the images to scan them surfaced both:
 - `frontend/Dockerfile` copied only `package.json` + `pnpm-lock.yaml`, not `pnpm-workspace.yaml` — so the security `overrides` were absent in-container and `--frozen-lockfile` rejected the lockfile.
 - Neither `frontend/` nor `docs/` had a `.dockerignore`, so `COPY . .` overwrote the freshly installed `node_modules` with the host's, whose pnpm symlinks point at a host-side store. Latent since before this pass — it happened to work until the dependency graph changed. Added, plus a pnpm pin in `docs/Dockerfile`, which used bare `corepack enable` and was silently resolving to pnpm 11 against a pnpm-10 lockfile.
+
+### Dependabot reconciliation (2026-07-29)
+
+GitHub reported **131 alerts on `master`** after the first push. That number predates this work — it reflects `master` before the remediation branch merged. Reconciled with `osv-scanner`, which like Dependabot ignores reachability and reports every advisory against a manifest (the reason it counts far more than `govulncheck`, `pnpm audit --audit-level high` or `pip-audit`, all of which filter):
+
+| Manifest | Pre-remediation | After merge | Now |
+|---|---|---|---|
+| `backend/go.mod` | 51 | 3 | 1 |
+| `backend/services/mlrunner/requirements.txt` | 75 | 2 | 0 |
+| `cli/go.mod` | 6 | 1 | 0 |
+| `frontend/pnpm-lock.yaml` | 70 | 0 | 0 |
+| `landing/pnpm-lock.yaml` | 29 | 2 | 1 |
+| `docs/pnpm-lock.yaml` | 5 | 4 | 4 |
+| **Total** | **236** | **12** | **6** |
+
+**A further four fixed in this pass** — all missed first time because the reachability-filtered gates rated them unreachable and stayed green:
+- `klauspost/compress` 1.18.3 → 1.18.7, `golang.org/x/net` 0.55.0 → 0.56.0 (`x/crypto` came along to 0.53.0).
+- `golang.org/x/text` 0.37.0 → 0.39.0 in **`cli/`** — the backend was bumped to 0.39.0 in the first pass but the CLI was left behind, and `govulncheck` reported 0 reachable there, so nothing flagged it.
+- `idna` pinned to 3.18 in the sidecar. Subtle one: `pip-audit` reported clean because it resolves transitives the way pip does (newest compatible), while Dependabot and osv-scanner assume the **minimum** satisfying version — 3.9.0, which carries GHSA-65pc-fj4g-8rjx. An explicit pin makes the safe version true under every resolver. Worth remembering for any other unpinned transitive.
+- `@babel/core` override in `landing` (dev-only, GHSA-4x5r-pxfx-6jf8).
+
+**The remaining 6 are accepted, and will not clear by bumping:**
+
+| Finding | Why it stays |
+|---|---|
+| `golang.org/x/crypto` GO-2026-5932 | **Unfixable.** Not a CVE — an advisory that `x/crypto/openpgp` is permanently unmaintained and unsafe by design. The affected range is `introduced: 0` with **no fixed version**, so every future bump keeps it. The gateway does not import openpgp; `govulncheck` confirms it unreachable. |
+| `vite` ×3 + `esbuild` (`docs`) | vitepress 1.6.4 depends on `vite ^5.4.14`; 6.x/8.x switch to rolldown and break the build (verified), and vitepress 2 is alpha. Dev-server only — never `vitepress build`, never production. |
+| `react-router` GHSA-qwww-vcr4-c8h2 (`landing`) | RSC-mode only; `landing` is a client-side `BrowserRouter` SPA. Fix requires the react-router 8 major. The migration is small for this surface (`BrowserRouter`/`Routes`/`Route`/`Link`) if the alert is worth closing. |
 
 **Corrections to the baseline's JS analysis.** "All transitive via `firebase`" was wrong in two places: `axios` (6 highs) and `react-router` (1 high) are **direct runtime dependencies** of `frontend` and `landing` respectively, not tree-shaken transitives. Both were missed because the analysis stopped at the most common root. The firebase claim itself held up — the vulnerable subtrees are confirmed absent from `frontend/dist` and `landing/dist`.
 
@@ -394,9 +422,11 @@ Tooling used: `govulncheck` (via `go run golang.org/x/vuln/cmd/govulncheck@lates
     - **⚠️ Currently DISABLED** (`if: false` in `security-scan.yml`), at the repo owner's request pending a gitleaks licence. **There is no secret scanning in CI while this is off.** Re-enable by deleting that one line — the job is fully configured and was verified passing.
     - _Note for whoever picks this up:_ a licence is **not** required. The job runs the gitleaks **OSS binary** (MIT), not `gitleaks/gitleaks-action` — the *action* is the part that demands a paid `GITLEAKS_LICENSE` on org-owned repos. Running the binary directly is free for organizations, so the job can be switched back on without buying anything.
     - The job scans with `fetch-depth: 0`, so it covers history rather than just the working tree.
-    - Allowlist in `.gitleaks.toml` is anchored on **exact literal values, never paths**. A path allowlist mutes a whole file; verified by planting AWS/GCP/Stripe keys next to the placeholders and watching a path-scoped config swallow all of them. `condition = "AND"` is not honoured by gitleaks 8.30, so it cannot be used to narrow one. The current config was re-tested both ways: benign matches pass, planted secrets are caught.
+    - **GitHub push protection is already enabled** — correcting two earlier notes in this file that said it still had to be turned on. It proved itself immediately: it rejected the very commit that added `.gitleaks.toml`, because the allowlist quoted Stripe-shaped fixture values verbatim.
+    - Allowlisting is therefore **by fingerprint** (`commit:path:rule:line`) in `.gitleaksignore`, not by value in `.gitleaks.toml`. A value-anchored allowlist has to copy the string it is excusing, which turns the config into a file of key-shaped strings and gets the push blocked — listing a secret to declare it harmless is self-defeating. A fingerprint names one finding without reproducing it, and is *narrower*: scoped to a single occurrence rather than every match of that value.
+    - Path-based allowlists were ruled out first, for a different reason: they mute an entire file. Verified by planting AWS/GCP/Stripe keys beside the placeholders and watching a path-scoped config swallow all of them. `condition = "AND"` is not honoured by gitleaks 8.30, so it cannot narrow one either.
     - **Two real credentials found in local git history** — see the escalation below. They are the reason this story is not closed.
-    - _Still partial:_ **GitHub push protection is a repository setting and must be enabled by hand.**
+    - _Still partial:_ the CI job itself is **disabled** (see above). Push protection is on and covers new pushes, but nothing scans history until the job is switched back on.
 
 > ### ⚠️ Escalation: two credentials in local git history
 >
@@ -404,7 +434,7 @@ Tooling used: `govulncheck` (via `go run golang.org/x/vuln/cmd/govulncheck@lates
 >
 > | Commit | Value | Action |
 > |---|---|---|
-> | `307c8fa` *(feat: Implement SSO via OIDC)* | Google OAuth **client secret** (`GOCSPX-…`) in `backend/.env.example:23` | Rotate in Google Cloud Console |
+> | `307c8fa` *(feat: Implement SSO via OIDC)* | Google OAuth **client secret**, `backend/.env.example:23` | Rotate in Google Cloud Console |
 > | `877f25e2` *(Add tenants and agents.md)* | `JWT_SECRET` value in `backend/.env.example:12` | Rotate; it signs admin session tokens |
 >
 > Neither value is in `HEAD` — the working tree has `<your-…>` placeholders. Deliberately **not** allowlisted: rotate first, then the finding disappears with the credential. Local history cleanup (`git gc` after dropping the unreferenced commits, plus the stash at `ca5aa1c`) is a separate step and was left to the repo owner rather than rewritten automatically.
