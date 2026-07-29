@@ -2,7 +2,10 @@
 FROM node:22-alpine AS builder
 
 WORKDIR /app
-RUN corepack enable
+# Pin pnpm to the version that wrote pnpm-lock.yaml. Bare `corepack enable`
+# resolves to whatever is latest (pnpm 11 today), which re-reconciles the
+# pnpm-10 lockfile mid-build and fails.
+RUN corepack enable && corepack prepare pnpm@10.17.1 --activate
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
@@ -11,7 +14,7 @@ COPY . .
 RUN pnpm build
 
 # ── Serve stage ──────────────────────────────────────────────────────────────
-FROM nginx:1.27-alpine
+FROM nginx:1.31-alpine
 
 COPY --from=builder /app/.vitepress/dist /usr/share/nginx/html
 

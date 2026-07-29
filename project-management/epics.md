@@ -22,14 +22,14 @@ _Last reconciled against source: 2026-07-29 (branch `feature/actions-firebase`).
 | E10 Agent Auth | 0 | 0 | 10 | Nothing started |
 | E11 `aigw` CLI | 3 | 2 | 9 | Usable CLI; no hardware keys or distribution |
 | E12 MCP Admin Server | 0 | 0 | 10 | Nothing started |
-| **E13 Vuln Scan & Remediation** | 9 | 2 | 0 | Remediation pass done 2026-07-29 — both Go modules clean, CI gate live |
-| **Total** | **17** | **12** | **71** | 100 stories |
+| **E13 Vuln Scan & Remediation** | 8 | 3 | 0 | CI gate green; **gitleaks disabled**; 2 leaked secrets need rotation |
+| **Total** | **16** | **14** | **70** | 100 stories |
 
 **Highest-leverage next moves:**
-1. **E9.S1/S2/S3** — HS256 shared-secret JWTs with no `jti`, refresh, or revocation is now the biggest security gap in shipped design; it also unblocks most of E11.
-2. **E2.S4 + E1.S1** — the secllm hot-path call is unmeasured and uncached. Benchmark, then cache.
-3. **E0.S4** — bearer JWT handed to the browser in a URL fragment; cookie sessions close this out.
-4. **E13.S10** — Dependabot/Renovate. The gate now catches drift, but nothing fixes it automatically.
+1. **Rotate the two credentials in local git history** (Google OAuth client secret, `JWT_SECRET`) — see the escalation under E13.S11. Not exposed on any remote, but both are live.
+2. **E9.S1/S2/S3** — HS256 shared-secret JWTs with no `jti`, refresh, or revocation is now the biggest security gap in shipped design; it also unblocks most of E11. Rotating the `JWT_SECRET` above is a stopgap for the same weakness.
+3. **E2.S4 + E1.S1** — the secllm hot-path call is unmeasured and uncached. Benchmark, then cache.
+4. **E0.S4** — bearer JWT handed to the browser in a URL fragment; cookie sessions close this out.
 
 ---
 
@@ -317,6 +317,20 @@ internal/mcp/
 | Low | `aigw logout` errored on the file keyring backend when nothing was stored — it returns `fs.ErrNotExist`, not `keyring.ErrKeyNotFound`. | `isNotFound` normalises both; covered by the new round-trip tests. |
 | Low | Auth claims stored in `context` under a bare `"claims"` string key — any package could shadow them (SA1029). | Unexported `claimsCtxKey` type with `withClaims` / `claimsFrom` accessors. |
 
+**Found by the CI gate itself, on its first run (2026-07-29).** Five of seven jobs failed initially. Two failures were defects in the workflow; the other three were genuine, and are the clearest argument for the gate existing:
+
+| Job | Cause | Fix |
+|---|---|---|
+| `pip-audit` | **Real.** `starlette` 0.46.2 — pulled in transitively by `fastapi` — carries 9 advisories. The earlier OSV sweep queried only the *pinned* packages, so it never saw transitives; `pip-audit` resolves the full tree, which is exactly the gap it closes. | `fastapi` 0.115.12 → 0.140.13 (first line accepting `starlette >= 1.x`), `starlette` pinned to 1.3.1. |
+| `trivy` (all) | **Workflow defect.** `aquasecurity/trivy-action@0.28.0` — the tags are `v`-prefixed, so every image job failed to resolve the action. | `@v0.36.0`. |
+| `trivy` (backend) | **Real,** once the action resolved. `golang.org/x/crypto` v0.51.0, 9 HIGH SSH CVEs. `govulncheck` rates them unreachable (the gateway never uses `x/crypto/ssh`); trivy is package-level and does not care. | → v0.52.0 in both modules. |
+| `trivy` (frontend, docs) | **Real.** `nginx:1.27-alpine` was badly stale — CRITICAL OpenSSL plus ~30 HIGH. `python:3.11-slim` carried 2 HIGH. | `nginx:1.31-alpine`, `python:3.12-slim` (all mlrunner pins verified to have 3.12 wheels). Both now scan clean. |
+| `gitleaks` | **Workflow defect.** `gitleaks/gitleaks-action@v2` requires a paid `GITLEAKS_LICENSE` for org-owned repos and fails closed without one. | Run the MIT-licensed OSS binary directly. |
+
+**Two image builds were broken by this pass and are now fixed.** Building the images to scan them surfaced both:
+- `frontend/Dockerfile` copied only `package.json` + `pnpm-lock.yaml`, not `pnpm-workspace.yaml` — so the security `overrides` were absent in-container and `--frozen-lockfile` rejected the lockfile.
+- Neither `frontend/` nor `docs/` had a `.dockerignore`, so `COPY . .` overwrote the freshly installed `node_modules` with the host's, whose pnpm symlinks point at a host-side store. Latent since before this pass — it happened to work until the dependency graph changed. Added, plus a pnpm pin in `docs/Dockerfile`, which used bare `corepack enable` and was silently resolving to pnpm 11 against a pnpm-10 lockfile.
+
 **Corrections to the baseline's JS analysis.** "All transitive via `firebase`" was wrong in two places: `axios` (6 highs) and `react-router` (1 high) are **direct runtime dependencies** of `frontend` and `landing` respectively, not tree-shaken transitives. Both were missed because the analysis stopped at the most common root. The firebase claim itself held up — the vulnerable subtrees are confirmed absent from `frontend/dist` and `landing/dist`.
 
 ### Baseline scan (2026-07-28)
@@ -369,12 +383,32 @@ Tooling used: `govulncheck` (via `go run golang.org/x/vuln/cmd/govulncheck@lates
     - `pip-audit` still aborts locally (the `ensurepip` SIGABRT is in this machine's uv-managed CPython, not the tool) — assessed by querying OSV directly instead, which found **36 advisories across 4 of the 8 pins**, the worst surface in the repo. Remediated: `transformers` 4.52.3 → 5.14.1, `torch` 2.7.0 → 2.13.0, `sentencepiece` 0.2.0 → 0.2.1, `protobuf` 5.29.4 → 5.29.6. All 8 pins now return zero OSV findings and all support the Dockerfile's Python 3.11. The transformers 5.x major was de-risked by loading the pinned model's tokenizer and config against 5.14.1: it resolves cleanly, and 5.x provides `TokenizersBackend` natively — the `registry.py` monkey-patch that faked it is now a no-op. **Not verified:** the model *weights* load (1.2 GB + torch), so run the sidecar once before shipping.
     - The CI `pip-audit` job runs on a stock GitHub runner and is unaffected by the local crash.
 - [~] **E13.S8: Container Image Scanning:** Trivy over all four images. Pin to digests, rebuild on base-image CVEs.
-    - _Partial:_ Trivy is wired into the S1 workflow (HIGH/CRITICAL, `ignore-unfixed`) for backend, frontend and docs, plus the mlrunner **base image** — mlrunner's own Dockerfile bakes torch and a 1.2 GB model into a layer, too slow to build per-PR, and its Python packages are already covered by `pip-audit`. **No scanner was available locally, so this has never actually run** — first CI execution may surface findings. Base images are still tags, **not digests**.
+    - Trivy is wired into the S1 workflow (HIGH/CRITICAL, `ignore-unfixed`) for backend, frontend and docs, plus the mlrunner **base image** — mlrunner's own Dockerfile bakes torch and a 1.2 GB model into a layer, too slow to build per-PR, and its Python packages are covered by `pip-audit`. **Now actually executed**, and it was not a formality: it failed on first run and produced four real fixes (`x/crypto`, `nginx`, `python`, plus two Dockerfile bugs — see the run notes above). All four images now scan clean.
+    - _Still partial:_ base images are pinned to **tags, not digests**, so a rebuild can silently pick up a different layer. `node:22-alpine` still carries HIGH/CRITICAL findings in its bundled npm tooling; it is a builder stage only and none of it reaches the shipped nginx image, so the gate does not see it — worth revisiting if the build stage ever ships.
 - [x] **E13.S9: Go SAST Pass:** Run `gosec` + `staticcheck` across both modules and fix real findings.
     - Both modules clean at `-severity=medium`. Real fixes: the tenant API key disclosure, the loopback XSS, the `0755` config dir, and the `"claims"` context key (all detailed above), plus three staticcheck nits. Three `#nosec` annotations remain in `cli/internal/cmd/env.go`, each justified inline — `aigw run` executing the operator's own command and `--write` targeting the operator's own path are the features, not vulnerabilities.
-- [ ] **E13.S10: Automated Dependency Drift:** Enable Dependabot or Renovate for all six manifests (2 × `go.mod`, 3 × `package.json`, 1 × `requirements.txt`) plus Docker base images. Grouped weekly PRs, auto-merge on green for patch-level bumps. Prevents the drift this epic is cleaning up.
-    - Now the main gap: the gate catches drift on PR and nightly, but nothing opens the fixing PR.
+- [~] **E13.S10: Automated Dependency Drift:** Enable Dependabot or Renovate for all six manifests (2 × `go.mod`, 3 × `package.json`, 1 × `requirements.txt`) plus Docker base images. Grouped weekly PRs, auto-merge on green for patch-level bumps.
+    - _Partial — correction to the earlier "nothing started" note:_ Dependabot **is already running**, via GitHub security updates rather than a config file. `origin` carries open branches for `pgx`, `x/crypto`, `x/net`, `grpc`, `axios`, `torch` and `transformers` — the same bumps this pass made by hand, which is why several landed as duplicates.
+    - _Missing:_ no `.github/dependabot.yml`, so there is no coverage of Docker base images (exactly the drift that produced the stale `nginx:1.27-alpine` findings), no grouping, no schedule control, and no auto-merge.
 - [~] **E13.S11: Secret Scanning:** Enable GitHub push protection + a `gitleaks` CI job.
-    - _Partial:_ the `gitleaks` job ships in the S1 workflow with `fetch-depth: 0` so it scans history, not just the tree. **GitHub push protection is a repository setting and must be enabled by hand** — until then, secrets are caught after they reach the remote, which is exactly the gap commit `6631e18` worked around.
+    - **⚠️ Currently DISABLED** (`if: false` in `security-scan.yml`), at the repo owner's request pending a gitleaks licence. **There is no secret scanning in CI while this is off.** Re-enable by deleting that one line — the job is fully configured and was verified passing.
+    - _Note for whoever picks this up:_ a licence is **not** required. The job runs the gitleaks **OSS binary** (MIT), not `gitleaks/gitleaks-action` — the *action* is the part that demands a paid `GITLEAKS_LICENSE` on org-owned repos. Running the binary directly is free for organizations, so the job can be switched back on without buying anything.
+    - The job scans with `fetch-depth: 0`, so it covers history rather than just the working tree.
+    - Allowlist in `.gitleaks.toml` is anchored on **exact literal values, never paths**. A path allowlist mutes a whole file; verified by planting AWS/GCP/Stripe keys next to the placeholders and watching a path-scoped config swallow all of them. `condition = "AND"` is not honoured by gitleaks 8.30, so it cannot be used to narrow one. The current config was re-tested both ways: benign matches pass, planted secrets are caught.
+    - **Two real credentials found in local git history** — see the escalation below. They are the reason this story is not closed.
+    - _Still partial:_ **GitHub push protection is a repository setting and must be enabled by hand.**
+
+> ### ⚠️ Escalation: two credentials in local git history
+>
+> Found by the new gitleaks gate. Neither is reachable from `origin` or `public`, so **CI passes and nothing is exposed on GitHub** — but both are real and both are in the local clone's objects:
+>
+> | Commit | Value | Action |
+> |---|---|---|
+> | `307c8fa` *(feat: Implement SSO via OIDC)* | Google OAuth **client secret** (`GOCSPX-…`) in `backend/.env.example:23` | Rotate in Google Cloud Console |
+> | `877f25e2` *(Add tenants and agents.md)* | `JWT_SECRET` value in `backend/.env.example:12` | Rotate; it signs admin session tokens |
+>
+> Neither value is in `HEAD` — the working tree has `<your-…>` placeholders. Deliberately **not** allowlisted: rotate first, then the finding disappears with the credential. Local history cleanup (`git gc` after dropping the unreferenced commits, plus the stash at `ca5aa1c`) is a separate step and was left to the repo owner rather than rewritten automatically.
+>
+> Note `backend/.env.example` also ships a real-looking `ADMIN_PASSWORD` default in `HEAD`. gitleaks does not flag it, but a committed default admin password is worth replacing with a placeholder.
 
 **Definition of done:** `govulncheck` clean (no reachable findings) on both Go modules ✅, JS criticals/highs either patched or documented as unreachable ✅, mlrunner scanned ✅, all images scanned ⚠️ (wired, never executed — S8), and CI blocking regressions ✅.

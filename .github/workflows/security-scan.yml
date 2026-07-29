@@ -107,7 +107,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11" # matches services/mlrunner/Dockerfile
+          python-version: "3.12" # matches services/mlrunner/Dockerfile
       - name: Install pip-audit
         run: pip install pip-audit
       - name: Audit requirements
@@ -135,7 +135,7 @@ jobs:
       - name: Build image
         run: docker build -t scan-target:${{ matrix.image.name }} -f ${{ matrix.image.dockerfile }} ${{ matrix.image.context }}
       - name: Scan image
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: scan-target:${{ matrix.image.name }}
           severity: HIGH,CRITICAL
@@ -151,24 +151,43 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Scan python:3.11-slim
-        uses: aquasecurity/trivy-action@0.28.0
+      - name: Scan python:3.12-slim
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: python:3.11-slim
+          image-ref: python:3.12-slim
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: "1"
 
-  # ── Secrets (E13.S11) ──────────────────────────────────────────────────────
-  # Pair this with GitHub push protection in repo settings — CI catches a secret
-  # after it is already pushed; push protection stops it reaching the remote.
+  # ── Secrets (E13.S11) — DISABLED ───────────────────────────────────────────
+  #
+  # TO RE-ENABLE: delete the `if: false` line below. That is the only change
+  # needed. The job is configured, was verified passing, and needs no license.
+  #
+  # Turned off at the repo owner's request pending a gitleaks licence. Worth
+  # knowing before buying one: this job does NOT need a licence. It runs the
+  # gitleaks OSS binary (MIT), not `gitleaks/gitleaks-action` — that *action*
+  # is what requires a paid GITLEAKS_LICENSE on org-owned repos. Running it
+  # this way is free for organizations.
+  #
+  # While this is off there is no secret scanning in CI. GitHub push
+  # protection (repo Settings → Code security) is free, independent of
+  # gitleaks, and stops secrets before they reach the remote rather than
+  # after — worth enabling in the meantime.
+  #
+  # Pair with push protection when re-enabled: CI catches a secret once it is
+  # already pushed; push protection stops it getting there.
   gitleaks:
     name: gitleaks
+    if: false # ← delete this line to re-enable
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # full history — gitleaks scans commits, not the tree
-      - uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Allowlist of known-benign matches lives in .gitleaks.toml.
+      - name: Scan history for secrets
+        run: |
+          docker run --rm -v "$PWD:/repo" -w /repo zricethezav/gitleaks:v8.30.1 \
+            detect --source=/repo --config=/repo/.gitleaks.toml \
+            --no-banner --redact --verbose

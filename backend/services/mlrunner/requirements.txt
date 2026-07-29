@@ -1,4 +1,9 @@
-fastapi==0.115.12
+# fastapi 0.140.x is the first line that accepts starlette >= 1.x. The old
+# `starlette <0.47` ceiling pinned us to 0.46.2, which carries 9 advisories
+# (PYSEC-2026-161/248/249/1941/1942/2280/2281). starlette is pinned explicitly
+# so a resolver that picks an older compatible release can't drag them back.
+fastapi==0.140.13
+starlette==1.3.1
 uvicorn[standard]==0.34.3
 # transformers 5.x: clears CVE-2026-4372 and CVE-2026-5241 (arbitrary code
 # execution during model loading) plus the 4.x ReDoS set. 5.x also provides

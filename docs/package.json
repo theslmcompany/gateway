@@ -2,6 +2,7 @@
   "name": "ai-gateway-docs",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@10.17.1",
   "scripts": {
     "dev": "vitepress dev",
     "build": "DOCS_BASE=/docs/ vitepress build",
