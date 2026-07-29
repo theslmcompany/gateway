@@ -142,8 +142,8 @@ func (e *Engine) Evaluate(ctx context.Context, evalCtx EvalContext) (*Decision, 
 		if fired[i].Priority != fired[j].Priority {
 			return fired[i].Priority < fired[j].Priority
 		}
-		pi, _ := actionPriority[fired[i].Action]
-		pj, _ := actionPriority[fired[j].Action]
+		pi := actionPriority[fired[i].Action]
+		pj := actionPriority[fired[j].Action]
 		return pi < pj
 	})
 

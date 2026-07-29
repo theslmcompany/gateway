@@ -1,0 +1,13 @@
+# Without this, `COPY . .` overwrites the node_modules that the preceding
+# `pnpm install` just built with the host's copy — whose pnpm symlinks point
+# into a host-side store that does not exist in the image. The build then fails
+# at resolve time (e.g. ENOENT on node_modules/vue).
+node_modules
+dist
+.vitepress/cache
+.vitepress/dist
+
+.git
+.gitignore
+Dockerfile
+.dockerignore

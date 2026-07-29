@@ -187,6 +187,9 @@ var runCmd = &cobra.Command{
 			return err
 		}
 
+		// #nosec G204 -- childArgs is what the operator typed after `--`; running
+		// their command with provider env vars injected is the whole point of
+		// `aigw run`. There is no privilege boundary to cross here.
 		child := exec.CommandContext(cmd.Context(), childArgs[0], childArgs[1:]...)
 		child.Env = append(os.Environ(), p.keyVar+"="+key, p.baseVar+"="+base)
 		child.Stdin, child.Stdout, child.Stderr = os.Stdin, os.Stdout, os.Stderr
@@ -207,8 +210,11 @@ func shellQuote(s string) string {
 
 // writeEnvFile upserts the given KEY=value pairs into a dotenv-style file,
 // replacing existing lines for those keys and appending the rest.
+// path comes from the operator's own --write flag, so it is deliberately
+// unrestricted — the CLI runs with their privileges and writes where they ask.
 func writeEnvFile(path string, vars map[string]string) error {
 	var lines []string
+	// #nosec G304,G703 -- operator-supplied destination, see above.
 	if existing, err := os.ReadFile(path); err == nil {
 		lines = strings.Split(strings.TrimRight(string(existing), "\n"), "\n")
 	} else if !os.IsNotExist(err) {
@@ -232,6 +238,8 @@ func writeEnvFile(path string, vars map[string]string) error {
 	for _, k := range sortedKeys(remaining) {
 		out = append(out, k+"="+remaining[k])
 	}
+	// #nosec G306,G703 -- operator-supplied destination; 0600 because the file
+	// holds a gateway API key.
 	return os.WriteFile(path, []byte(strings.Join(out, "\n")+"\n"), 0o600)
 }
 

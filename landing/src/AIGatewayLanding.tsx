@@ -1483,6 +1483,13 @@ export default function AIGatewayLanding(): ReactNode {
               TOWER ONLINE
             </span>
             <a
+              href="https://gateway.theslmcompany.com"
+              className="text-xs font-mono font-bold tracking-widest px-4 py-2 rounded transition-colors hover:text-cyan-300"
+              style={{ color: "#94a3b8" }}
+            >
+              LOGIN
+            </a>
+            <a
               href="#waitlist"
               className="text-xs font-mono font-bold tracking-widest px-4 py-2 rounded transition-colors"
               style={{
@@ -1846,6 +1853,142 @@ export default function AIGatewayLanding(): ReactNode {
                 </p>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Crew credentials (aigw CLI / cost control) ── */}
+      <section
+        className="py-24 px-6 lg:px-12 xl:px-24 border-t"
+        style={{
+          borderColor: "rgba(34,211,238,0.08)",
+          background: "rgba(34,211,238,0.015)",
+        }}
+      >
+        <div className="w-full">
+          <div className="text-center mb-14">
+            <p className="text-xs font-mono uppercase tracking-widest text-slate-600 mb-4">
+              Crew credentials
+            </p>
+            <h2 className="text-3xl sm:text-4xl font-black tracking-tight mb-4">
+              Give your crew logins,
+              <br />
+              <span style={{ color: "#22d3ee" }}>not the master key.</span>
+            </h2>
+            <p className="text-slate-400 text-lg max-w-2xl mx-auto">
+              Copying the company provider key into every developer, QA, and CI
+              dotfile means one bill you can't break down, no per-person cap, and
+              a long-lived secret on every laptop. The{" "}
+              <span className="font-mono text-cyan-400">aigw</span> CLI replaces
+              that key with a login.
+            </p>
+          </div>
+
+          <div className="grid lg:grid-cols-2 gap-6 items-start max-w-5xl mx-auto">
+            {/* Terminal */}
+            <div
+              className="rounded-xl overflow-hidden shadow-2xl"
+              style={{
+                background: "#050d14",
+                border: "1px solid rgba(34,211,238,0.15)",
+              }}
+            >
+              <div
+                className="flex items-center gap-1.5 px-4 py-3 border-b"
+                style={{
+                  background: "rgba(34,211,238,0.04)",
+                  borderColor: "rgba(34,211,238,0.1)",
+                }}
+              >
+                <div className="w-2.5 h-2.5 rounded-full bg-red-500/60" />
+                <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/60" />
+                <div className="w-2.5 h-2.5 rounded-full bg-green-500/60" />
+                <span className="ml-3 text-xs font-mono text-cyan-900">
+                  ~/dev — zsh
+                </span>
+              </div>
+              <div className="p-6 font-mono text-sm leading-relaxed space-y-2 overflow-x-auto">
+                <div className="whitespace-nowrap">
+                  <span className="text-cyan-600">$</span>{" "}
+                  <span className="text-slate-200">aigw login</span>
+                </div>
+                <div className="whitespace-nowrap text-slate-600">
+                  ✓ authenticated as dev@acme.com · key minted for tenant
+                  &lt;acme&gt;
+                </div>
+                <div className="whitespace-nowrap pt-2">
+                  <span className="text-cyan-600">$</span>{" "}
+                  <span className="text-slate-200">
+                    aigw run openai -- python app.py
+                  </span>
+                </div>
+                <div className="whitespace-nowrap text-slate-600">
+                  ↳ OPENAI_API_KEY + OPENAI_BASE_URL set for this process only
+                </div>
+                <div className="whitespace-nowrap text-slate-600">
+                  ↳ routed through the gateway · every call traced &amp; billed
+                  to dev@acme.com
+                </div>
+              </div>
+              <div
+                className="flex items-center justify-between px-6 py-3 border-t"
+                style={{
+                  borderColor: "rgba(34,211,238,0.08)",
+                  background: "rgba(34,211,238,0.02)",
+                }}
+              >
+                <span className="text-xs font-mono text-cyan-900">
+                  SSO login · no provider key on the machine
+                </span>
+                <span
+                  className="text-xs font-mono px-2 py-0.5 rounded"
+                  style={{
+                    background: "rgba(34,211,238,0.08)",
+                    color: "#22d3ee",
+                  }}
+                >
+                  KEY ON TOWER
+                </span>
+              </div>
+            </div>
+
+            {/* Benefits */}
+            <div className="space-y-4">
+              {[
+                {
+                  tag: "MANIFEST",
+                  title: "Every call attributed",
+                  body: "Keys are tenant-, agent-, or user-scoped. Spend breaks down per team and per person — not one opaque invoice you reverse-engineer at month end.",
+                },
+                {
+                  tag: "GROUNDED",
+                  title: "Revoke one seat, not the fleet",
+                  body: "Someone leaves? Revoke their access. The shared key stays valid for everyone else — no rotation scramble, no redeploy.",
+                },
+                {
+                  tag: "BLAST RADIUS",
+                  title: "No key on the tarmac",
+                  body: "Provider credentials live only on the gateway. There is nothing in a developer dotfile or CI log to leak.",
+                },
+              ].map((b) => (
+                <div
+                  key={b.tag}
+                  className="rounded-lg p-5"
+                  style={{
+                    background: "rgba(13,21,32,0.8)",
+                    border: "1px solid rgba(34,211,238,0.1)",
+                  }}
+                >
+                  <p className="text-xs font-mono font-bold tracking-widest text-cyan-800 mb-2">
+                    {b.tag}
+                  </p>
+                  <h3 className="font-bold text-white mb-2">{b.title}</h3>
+                  <p className="text-sm text-slate-400 leading-relaxed">
+                    {b.body}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>

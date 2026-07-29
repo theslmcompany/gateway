@@ -1,3 +1,15 @@
 onlyBuiltDependencies:
   - '@firebase/util'
   - protobufjs
+
+# Security overrides — E13.S6. These packages arrive only via `firebase`
+# (@firebase/database -> faye-websocket -> websocket-driver, @firebase/firestore
+# -> @grpc/grpc-js -> protobufjs). We import only firebase/app and
+# firebase/analytics, so the vulnerable code is tree-shaken out of the shipped
+# bundle — pinned anyway so `pnpm audit` stays clean and a future import of
+# those modules cannot silently reintroduce the CVEs.
+overrides:
+  websocket-driver: '>=0.7.5'
+  '@grpc/grpc-js': '>=1.14.4'
+  protobufjs: '>=7.6.5 <8'
+  '@protobufjs/utf8': '>=1.1.1'

@@ -52,7 +52,7 @@ func NewRouter(cfg *config.Config, database *gorm.DB, redisCache *redis.Client, 
 
 	mux := chi.NewRouter()
 	mux.Use(middleware.RequestID)
-	mux.Use(middleware.RealIP)
+	mux.Use(clientIPMiddleware(cfg.Network))
 	mux.Use(middleware.Recoverer)
 	mux.Use(srv.Authenticate)
 	mux.Use(agentTraceMiddleware)

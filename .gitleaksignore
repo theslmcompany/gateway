@@ -1,0 +1,27 @@
+# gitleaks finding allowlist, by fingerprint: commit:path:rule:line.
+#
+# A fingerprint names one specific finding without reproducing its value, so
+# this file stays free of key-shaped strings. That matters: the value-anchored
+# regexes this replaced made .gitleaks.toml itself look like a secrets file,
+# and GitHub push protection blocked the commit carrying it.
+#
+# Scope is one finding each — not a file, not a rule, not a path. A new secret
+# in any of these same files still fails the gate, because its fingerprint
+# differs.
+#
+# Everything below is a synthetic Stripe-shaped fixture asserting that the
+# guardrails engine and API-key parser detect credential patterns. The tests
+# exist precisely because these strings look like keys; one is Stripe's own
+# published documentation example. None is a live credential.
+#
+# NOT listed here, deliberately: the two real credentials in local history
+# (a Google OAuth client secret and a JWT_SECRET, both in backend/.env.example
+# in unpushed commits). Those need rotating, not allowlisting — see E13.S11 in
+# project-management/epics.md.
+
+# backend/internal/guardrails/managed_test.go — guardrails detection fixture
+89718c186ca0407eb031cb8c6a74530be0bc370d:backend/internal/guardrails/managed_test.go:stripe-access-token:37
+6a83f4614cfa7c6a546810bed78bc6cc16b276de:backend/internal/guardrails/managed_test.go:stripe-access-token:37
+
+# backend/internal/auth/keys_test.go — key-parser fixture
+f7e120c7a3301ee800d57902b4f308fefaa5e7fb:backend/internal/auth/keys_test.go:stripe-access-token:41

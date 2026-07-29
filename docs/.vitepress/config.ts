@@ -4,7 +4,7 @@ import type { Plugin } from 'vite'
 // ── Single source of truth ────────────────────────────────────────────────────
 // Change this one line and every code example, command, and
 // configuration snippet updates automatically.
-const GATEWAY_URL = 'https://gateway.chaitanya.ink'
+const GATEWAY_URL = 'https://gateway.theslmcompany.com'
 
 // Vite plugin: replaces {{GATEWAY_URL}} in raw .md files before they're parsed
 function gatewayUrlPlugin(): Plugin {
@@ -36,6 +36,7 @@ export default defineConfig({
   themeConfig: {
     nav: [
       { text: 'Home', link: '/' },
+      { text: 'Quickstart', link: '/quickstart' },
       { text: 'Getting Started', link: '/getting-started' },
       { text: 'Integration', link: '/integration' },
     ],
@@ -45,6 +46,7 @@ export default defineConfig({
         text: 'Welcome',
         items: [
           { text: 'Overview', link: '/' },
+          { text: 'Quickstart (self-host)', link: '/quickstart' },
           { text: 'Getting Started', link: '/getting-started' },
         ],
       },
@@ -52,6 +54,7 @@ export default defineConfig({
         text: 'Connect',
         items: [
           { text: 'Integration Guide', link: '/integration' },
+          { text: 'CLI (aigw)', link: '/cli' },
           { text: 'API Keys', link: '/api-keys' },
           { text: 'Provider Keys (Upstreams)', link: '/upstreams' },
         ],
@@ -82,7 +85,7 @@ export default defineConfig({
     ],
 
     socialLinks: [
-      { icon: 'github', link: '#' },
+      { icon: 'github', link: 'https://github.com/theslmcompany/gateway' },
     ],
 
     search: {

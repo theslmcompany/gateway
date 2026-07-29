@@ -133,3 +133,53 @@ func TestLoadJWTSecret(t *testing.T) {
 		assert.Len(t, s1, 64) // 32 bytes hex encoded
 	})
 }
+
+func TestLoadNetwork(t *testing.T) {
+	for _, k := range []string{"TRUSTED_PROXY_CIDRS", "TRUSTED_PROXY_COUNT", "TRUSTED_CLIENT_IP_HEADER"} {
+		t.Setenv(k, "")
+	}
+
+	t.Run("defaults to trusting nothing", func(t *testing.T) {
+		n, err := loadNetwork()
+		assert.NoError(t, err)
+		assert.False(t, n.Configured())
+		assert.Empty(t, n.TrustedProxyCIDRs)
+		assert.Zero(t, n.TrustedProxyCount)
+	})
+
+	t.Run("parses CIDR list", func(t *testing.T) {
+		t.Setenv("TRUSTED_PROXY_CIDRS", "10.0.0.0/8, 2400:cb00::/32 ,")
+		n, err := loadNetwork()
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"10.0.0.0/8", "2400:cb00::/32"}, n.TrustedProxyCIDRs)
+		assert.True(t, n.Configured())
+	})
+
+	t.Run("rejects malformed CIDR", func(t *testing.T) {
+		t.Setenv("TRUSTED_PROXY_CIDRS", "10.0.0.0/8,not-a-cidr")
+		_, err := loadNetwork()
+		assert.ErrorContains(t, err, "not-a-cidr")
+	})
+
+	t.Run("bare IP is not a CIDR", func(t *testing.T) {
+		t.Setenv("TRUSTED_PROXY_CIDRS", "10.0.0.7")
+		_, err := loadNetwork()
+		assert.Error(t, err)
+	})
+
+	t.Run("parses hop count", func(t *testing.T) {
+		t.Setenv("TRUSTED_PROXY_CIDRS", "")
+		t.Setenv("TRUSTED_PROXY_COUNT", "2")
+		n, err := loadNetwork()
+		assert.NoError(t, err)
+		assert.Equal(t, 2, n.TrustedProxyCount)
+	})
+
+	t.Run("rejects non-positive hop count", func(t *testing.T) {
+		for _, v := range []string{"0", "-1", "many"} {
+			t.Setenv("TRUSTED_PROXY_COUNT", v)
+			_, err := loadNetwork()
+			assert.Error(t, err, "TRUSTED_PROXY_COUNT=%s should be rejected", v)
+		}
+	})
+}

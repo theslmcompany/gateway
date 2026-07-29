@@ -1,0 +1,29 @@
+# Security overrides — E13.S6.
+#
+# firebase transitives: @firebase/database -> faye-websocket -> websocket-driver
+# and @firebase/firestore -> @grpc/grpc-js -> protobufjs. This app imports only
+# firebase/app and firebase/analytics, so the vulnerable code is tree-shaken out
+# of the shipped bundle — pinned anyway so a future import cannot silently
+# reintroduce the CVEs.
+#
+# brace-expansion / js-yaml arrive via eslint and typescript-eslint. Build-time
+# only, but cheap to pin.
+#
+# Accepted risk: react-router GHSA-qwww-vcr4-c8h2 (RSC-mode CSRF bypass) is
+# fixed only in react-router 8. This app is a client-side SPA using
+# BrowserRouter — it never runs RSC mode — so the advisory is unreachable.
+# Revisit if this app ever adopts a React Router framework / RSC setup.
+overrides:
+  websocket-driver: '>=0.7.5'
+  '@grpc/grpc-js': '>=1.14.4'
+  protobufjs: '>=7.6.5 <8'
+  '@protobufjs/utf8': '>=1.1.1'
+  brace-expansion: '>=5.0.8'
+  js-yaml: '>=4.3.0'
+
+# Accepted-risk allowlist for the CI audit gate. Each entry must have a written
+# justification above; anything not listed here fails the build.
+auditConfig:
+  ignoreGhsas:
+    # react-router RSC-mode CSRF bypass — unreachable, see note above.
+    - GHSA-qwww-vcr4-c8h2

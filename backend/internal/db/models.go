@@ -11,8 +11,15 @@ type Tenant struct {
 	gorm.Model
 	Name          string `gorm:"uniqueIndex;not null"`
 	Description   string
-	APIKey        string `gorm:"uniqueIndex;not null"` // Internal key for this tenant to use the gateway
-	WebhookSecret string `gorm:"default:''" json:"-"`  // HMAC-SHA256 signing secret for async task callbacks
+	// APIKey is the plaintext of the tenant's default gateway key — a live
+	// proxy credential (its hash is the one row in APIKeys that authenticates
+	// requests). json:"-" because every admin handler that encodes a Tenant
+	// would otherwise hand it to any member of the tenant, regardless of role,
+	// bypassing the keys.read / keys.manage permissions entirely.
+	// TODO: drop this column — APIKeys already stores the hash, and keeping a
+	// plaintext credential in the DB has no remaining consumer.
+	APIKey        string `gorm:"uniqueIndex;not null" json:"-"`
+	WebhookSecret string `gorm:"default:''" json:"-"` // HMAC-SHA256 signing secret for async task callbacks
 	Agents        []Agent
 	APIKeys       []APIKey
 	Upstreams     []Upstream

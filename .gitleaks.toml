@@ -1,0 +1,64 @@
+# gitleaks config for the E13.S11 secret-scanning gate.
+#
+# Policy: the gate stays ON and scans full history. Known-benign matches are
+# allowlisted here, each with the reason it is benign — never by weakening the
+# rules or dropping the job. Anything not listed below fails the build.
+#
+# Every allowlist matches an EXACT literal value, anchored, with no `paths`
+# filter. That is deliberate:
+#
+#   * Path-based allowlists are a trap — they mute an entire file, so a real
+#     credential committed next to a placeholder sails straight through. This
+#     was verified: with a path-scoped config, planted AWS/GCP/Stripe keys in
+#     these same files were silently suppressed.
+#   * `condition = "AND"` (path AND value) is not honoured by gitleaks 8.30,
+#     so it cannot be relied on to narrow a path allowlist.
+#
+# Anchoring on the value means only these specific strings are ever ignored;
+# any other secret, in any file, still fails the gate.
+#
+# Before adding an entry, confirm the value is genuinely not a credential. If
+# it is one, rotate it first — then there is nothing to allowlist.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = """
+Firebase web API key. A client-side identifier, not a secret: the Firebase SDK
+ships it in the browser bundle by design, and access is governed by Security
+Rules plus API-key restrictions in the GCP console, not by keeping the value
+private. Anchored to this one key, so any other AIza... value — a real GCP
+service key, for instance — still fails.
+"""
+regexTarget = "secret"
+regexes = ['''^AIzaSyAkKBBQg00PVBR8-RPiQatD-UQaMCYoJP4$''']
+
+[[allowlists]]
+description = """
+Placeholder keys in documentation and UI copy — the literal strings a reader
+is meant to replace with their own.
+"""
+regexTarget = "secret"
+regexes = ['''^sk_your_(gateway_)?key(_here)?$''']
+
+# Stripe-shaped test fixtures in backend/internal/auth/keys_test.go and
+# backend/internal/guardrails/managed_test.go are NOT allowlisted here.
+#
+# Writing the values into this file is what an anchored regex requires, and
+# that turns the allowlist itself into a file full of key-shaped strings —
+# GitHub push protection duly blocked the commit that added it. Listing a
+# secret in order to declare it harmless is self-defeating.
+#
+# They are allowlisted in .gitleaksignore instead, by fingerprint
+# (commit:path:rule:line). A fingerprint identifies one specific finding
+# without reproducing the value, so nothing key-shaped enters the repo.
+
+[[allowlists]]
+description = """
+`JWT_TTL_HOURS=24` in backend/.env.example — a duration, matched only because
+the generic-api-key rule reads it as continuation of the adjacent
+JWT_SECRET placeholder line.
+"""
+regexTarget = "secret"
+regexes = ['''^JWT_TTL_HOURS=24$''']

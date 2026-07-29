@@ -1,0 +1,193 @@
+name: Security scan
+
+# E13.S1 — the vulnerability gate. Fails the build on reachable High/Critical
+# findings; everything unreachable or accepted is allowlisted in-repo next to a
+# written justification (pnpm `auditConfig.ignoreGhsas`, `#nosec` comments)
+# rather than muted here. Also satisfies E7.S4 (SAST in CI) via the gosec +
+# staticcheck job — do not build a second pipeline for it.
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  schedule:
+    - cron: "0 3 * * *" # nightly — catches advisories published after merge
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-scan-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: "1.26.5"
+
+jobs:
+  # ── Go: reachable-vulnerability analysis ────────────────────────────────────
+  govulncheck:
+    name: govulncheck (${{ matrix.module }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module: [backend, cli]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: ${{ matrix.module }}/go.sum
+      # govulncheck reports only vulnerabilities the code actually calls, so a
+      # non-zero exit here means a reachable finding — always a real failure.
+      - name: govulncheck
+        working-directory: ${{ matrix.module }}
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
+  # ── Go: static application security testing ────────────────────────────────
+  go-sast:
+    name: gosec + staticcheck (${{ matrix.module }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module: [backend, cli]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: ${{ matrix.module }}/go.sum
+      - name: gosec
+        working-directory: ${{ matrix.module }}
+        run: go run github.com/securego/gosec/v2/cmd/gosec@latest -severity=medium -quiet ./...
+      - name: staticcheck
+        working-directory: ${{ matrix.module }}
+        run: go run honnef.co/go/tools/cmd/staticcheck@latest ./...
+
+  # ── JavaScript workspaces ──────────────────────────────────────────────────
+  pnpm-audit:
+    name: pnpm audit (${{ matrix.workspace }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        workspace: [frontend, landing, docs]
+    defaults:
+      run:
+        working-directory: ${{ matrix.workspace }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: ${{ matrix.workspace }}/pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      # Gate: High and above. Accepted risks live in each workspace's
+      # pnpm-workspace.yaml under auditConfig.ignoreGhsas, with the reasoning.
+      - name: Audit (gate)
+        run: pnpm audit --audit-level high
+      # Visibility: the full picture, including moderates and allowlisted
+      # entries. Never blocks — silence here would read as "nothing left".
+      - name: Audit (full report, non-blocking)
+        if: always()
+        run: pnpm audit || true
+
+  # ── Python sidecar ─────────────────────────────────────────────────────────
+  pip-audit:
+    name: pip-audit (mlrunner)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12" # matches services/mlrunner/Dockerfile
+      - name: Install pip-audit
+        run: pip install pip-audit
+      - name: Audit requirements
+        run: pip-audit -r backend/services/mlrunner/requirements.txt
+
+  # ── Container images (E13.S8) ──────────────────────────────────────────────
+  trivy:
+    name: trivy (${{ matrix.image.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - name: backend
+            context: backend
+            dockerfile: backend/Dockerfile
+          - name: frontend
+            context: frontend
+            dockerfile: frontend/Dockerfile
+          - name: docs
+            context: docs
+            dockerfile: docs/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t scan-target:${{ matrix.image.name }} -f ${{ matrix.image.dockerfile }} ${{ matrix.image.context }}
+      - name: Scan image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: scan-target:${{ matrix.image.name }}
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true # an unfixed base-image CVE is not actionable here
+          exit-code: "1"
+
+  # mlrunner is scanned as its base image rather than a built image: its
+  # Dockerfile bakes torch plus a 1.2 GB model into the layer, which is far too
+  # slow for every PR. The Python packages on top are covered by the pip-audit
+  # job, so nothing goes unscanned — only the layer assembly is skipped.
+  trivy-mlrunner-base:
+    name: trivy (mlrunner base image)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scan python:3.12-slim
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: python:3.12-slim
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+  # ── Secrets (E13.S11) — DISABLED ───────────────────────────────────────────
+  #
+  # TO RE-ENABLE: delete the `if: false` line below. That is the only change
+  # needed. The job is configured, was verified passing, and needs no license.
+  #
+  # Turned off at the repo owner's request pending a gitleaks licence. Worth
+  # knowing before buying one: this job does NOT need a licence. It runs the
+  # gitleaks OSS binary (MIT), not `gitleaks/gitleaks-action` — that *action*
+  # is what requires a paid GITLEAKS_LICENSE on org-owned repos. Running it
+  # this way is free for organizations.
+  #
+  # While this is off there is no secret scanning in CI. GitHub push
+  # protection (repo Settings → Code security) is free, independent of
+  # gitleaks, and stops secrets before they reach the remote rather than
+  # after — worth enabling in the meantime.
+  #
+  # Pair with push protection when re-enabled: CI catches a secret once it is
+  # already pushed; push protection stops it getting there.
+  gitleaks:
+    name: gitleaks
+    if: false # ← delete this line to re-enable
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history — gitleaks scans commits, not the tree
+      # Allowlist of known-benign matches lives in .gitleaks.toml.
+      - name: Scan history for secrets
+        run: |
+          docker run --rm -v "$PWD:/repo" -w /repo zricethezav/gitleaks:v8.30.1 \
+            detect --source=/repo --config=/repo/.gitleaks.toml \
+            --no-banner --redact --verbose

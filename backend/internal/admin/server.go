@@ -90,7 +90,8 @@ func NewRouter(cfg *config.Config, database *gorm.DB, llmRouter *llmrouter.Route
 			r.Get("/roles", srv.handleListRoles)
 			r.Get("/users", srv.handleListUsers)
 
-			r.Get("/tenants", srv.handleListTenants)   // Superadmin only? For now let's leave it open but it should probably filter by user if not superadmin.
+			// handleListTenants scopes non-superadmins to their own memberships.
+			r.Get("/tenants", srv.handleListTenants)
 			r.Post("/tenants", srv.handleCreateTenant) // Superadmin only ideally.
 
 			// Self-service: any authenticated user creates a tenant + becomes its admin.
@@ -146,16 +147,33 @@ func (s *Server) requireAuth(next http.Handler) http.Handler {
 			return
 		}
 
-		ctx := context.WithValue(r.Context(), "claims", claims)
-		next.ServeHTTP(w, r.WithContext(ctx))
+		next.ServeHTTP(w, r.WithContext(withClaims(r.Context(), claims)))
 	})
+}
+
+// claimsCtxKey is an unexported type so no other package can write (or
+// overwrite) the authenticated claims under the same context key. A bare
+// string key would let any package in the process shadow them — staticcheck
+// SA1029.
+type claimsCtxKey struct{}
+
+// withClaims stores the authenticated caller's claims on the context.
+func withClaims(ctx context.Context, claims *auth.Claims) context.Context {
+	return context.WithValue(ctx, claimsCtxKey{}, claims)
+}
+
+// claimsFrom returns the authenticated caller's claims, and whether the
+// request passed through requireAuth at all.
+func claimsFrom(ctx context.Context) (*auth.Claims, bool) {
+	claims, ok := ctx.Value(claimsCtxKey{}).(*auth.Claims)
+	return claims, ok && claims != nil
 }
 
 // RequirePermission enforces that the user has a specific permission for the tenant in the URL.
 func (s *Server) RequirePermission(permission string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			claims, ok := r.Context().Value("claims").(*auth.Claims)
+			claims, ok := claimsFrom(r.Context())
 			if !ok {
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
 				return
@@ -351,7 +369,7 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleListTenants(w http.ResponseWriter, r *http.Request) {
-	claims, _ := r.Context().Value("claims").(*auth.Claims)
+	claims, _ := claimsFrom(r.Context())
 
 	var tenants []db.Tenant
 	query := s.db.Model(&db.Tenant{})
@@ -372,7 +390,7 @@ func (s *Server) handleListTenants(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleCreateTenant(w http.ResponseWriter, r *http.Request) {
-	claims, _ := r.Context().Value("claims").(*auth.Claims)
+	claims, _ := claimsFrom(r.Context())
 	if !claims.IsSuperAdmin {
 		http.Error(w, "forbidden: superadmin only", http.StatusForbidden)
 		return
@@ -440,7 +458,7 @@ func (s *Server) createTenantWithDefaults(name, description string) (*db.Tenant,
 // its admin. Used for new-user onboarding (when a user belongs to no tenant)
 // and for creating additional organizations later.
 func (s *Server) handleSelfServeTenant(w http.ResponseWriter, r *http.Request) {
-	claims, _ := r.Context().Value("claims").(*auth.Claims)
+	claims, _ := claimsFrom(r.Context())
 	if claims == nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return

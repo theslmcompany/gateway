@@ -1,17 +1,29 @@
 analyzers:
   prompt-injection:
     model: "patronus-studio/wolf-defender-prompt-injection"
+    # Pinned commit SHA — `main` is mutable, so without this the artefact we
+    # load can change under us between image builds.
+    revision: "ecc382bd4d98ffa19e1c9c2ce4a0722904c04a3c"
     task: "text-classification"
     max_length: 512
     device: -1              # -1 = CPU, 0 = first GPU
-    trust_remote_code: true
+    # Verified off: the repo declares no `auto_map` and ships no .py files —
+    # it is a stock ModernBertForSequenceClassification checkpoint in
+    # safetensors, so no remote code needs to execute here.
+    trust_remote_code: false
     use_fast: false         # tokenizer_config.json contains internal class 'TokenizersBackend';
                             # use_fast=false bypasses the Rust tokenizer entirely
 
   # Add future analyzers here — no code changes required.
+  #
+  # Always set `revision` to a commit SHA, and leave `trust_remote_code`
+  # unset (it defaults to false). Only enable it for a model whose custom
+  # code you have read — it runs arbitrary Python inside this sidecar.
+  #
   # Example (Epic 3 PII detection):
   # ner-pii:
   #   model: "Jean-Baptiste/roberta-large-ner-english"
+  #   revision: "<commit-sha>"
   #   task: "ner"
   #   max_length: 512
   #   device: -1
@@ -19,6 +31,7 @@ analyzers:
   # Example (toxicity):
   # toxicity:
   #   model: "unitary/toxic-bert"
+  #   revision: "<commit-sha>"
   #   task: "text-classification"
   #   max_length: 512
   #   device: -1
