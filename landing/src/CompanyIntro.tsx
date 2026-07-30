@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 
 // ─── SLM Company intro page (theslmcompany.com /) ───────────────────────────────
 // Company-level landing. The Gateway product lives at /gateway.

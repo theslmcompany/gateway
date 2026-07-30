@@ -1,0 +1,96 @@
+version: 2
+
+# E13.S10 — automated dependency drift.
+#
+# Dependabot security updates were already running before this file existed,
+# but only for advisories it happened to raise, and only for package
+# ecosystems — never for Docker base images. That gap is how the repo ended up
+# shipping nginx:1.27-alpine with a CRITICAL OpenSSL advisory while every other
+# gate was green.
+#
+# Updates are grouped per ecosystem so a week's bumps arrive as one reviewable
+# PR rather than twenty. The security-scan workflow gates each one.
+
+updates:
+  # ── Go ─────────────────────────────────────────────────────────────────────
+  - package-ecosystem: gomod
+    directories: ["/backend", "/cli"]
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      go-dependencies:
+        patterns: ["*"]
+    commit-message:
+      prefix: "chore(deps)"
+
+  # ── JavaScript ─────────────────────────────────────────────────────────────
+  # Separate groups for runtime vs dev: a runtime bump ships to users and
+  # deserves a closer read than a linter bump.
+  - package-ecosystem: npm
+    directories: ["/frontend", "/landing", "/docs"]
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      js-production:
+        dependency-type: production
+        patterns: ["*"]
+      js-development:
+        dependency-type: development
+        patterns: ["*"]
+    commit-message:
+      prefix: "chore(deps)"
+
+  # ── Python sidecar ─────────────────────────────────────────────────────────
+  # torch and transformers are deliberately excluded from grouping: they are
+  # large, slow to verify, and a major bump needs the model load re-checked by
+  # hand. Let them arrive as individual PRs.
+  - package-ecosystem: pip
+    directory: "/backend/services/mlrunner"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      python-dependencies:
+        patterns: ["*"]
+        exclude-patterns: ["torch", "transformers"]
+    commit-message:
+      prefix: "chore(deps)"
+
+  # ── Container base images ──────────────────────────────────────────────────
+  # The gap this file exists to close. Covers golang/alpine (backend),
+  # python-slim (mlrunner), node/nginx (frontend, docs).
+  - package-ecosystem: docker
+    directories:
+      - "/backend"
+      - "/backend/services/mlrunner"
+      - "/frontend"
+      - "/docs"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      docker-base-images:
+        patterns: ["*"]
+    commit-message:
+      prefix: "chore(deps)"
+
+  # ── GitHub Actions ─────────────────────────────────────────────────────────
+  # Pinned action versions go stale too — security-scan.yml already shipped
+  # once with an unresolvable trivy-action tag.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "chore(ci)"
