@@ -5,7 +5,7 @@
 > plus `aigw`, a CLI that gives teams logins instead of shared API keys — every
 > call attributed and capped per user.
 
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
 [![Go 1.22+](https://img.shields.io/badge/Go-1.22%2B-00ADD8.svg)](https://go.dev)
 [![Docs](https://img.shields.io/badge/docs-live-brightgreen.svg)](https://gateway.theslmcompany.com/docs/)
 
@@ -321,4 +321,13 @@ See [SECURITY.md](SECURITY.md) for the private disclosure process.
 
 ## License
 
-[Apache License 2.0](LICENSE).
+[GNU Affero General Public License v3.0](LICENSE) — Copyright © 2025 The SLM Company.
+
+AGPL-3.0 is copyleft, including over the network. In short: you may use, modify,
+and self-host AI Gateway freely, but if you distribute a modified version **or
+offer it to others as a network service**, you must release your source under
+the AGPL-3.0 as well and keep the attribution notices intact.
+
+Need to embed AI Gateway in a closed-source product or offer it as a managed
+service without publishing your changes? A commercial license is available —
+contact us at [gateway.theslmcompany.com](https://gateway.theslmcompany.com/).

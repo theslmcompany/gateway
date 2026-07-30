@@ -1,0 +1,41 @@
+AI Gateway
+Copyright (C) 2025 The SLM Company
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU Affero General Public License as published by the Free
+Software Foundation, either version 3 of the License, or (at your option) any
+later version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE.  See the GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License along
+with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+--------------------------------------------------------------------------------
+
+Attribution and modification requirements
+-----------------------------------------
+
+If you modify this software, or run a modified version of it to provide a
+service over a network, AGPL-3.0 section 5 and section 13 require that you:
+
+  * keep all copyright, license, and attribution notices intact;
+  * carry prominent notices stating that you changed the files, and the date of
+    any change;
+  * license the entire modified work as a whole under AGPL-3.0; and
+  * offer all users interacting with it remotely a way to obtain the
+    corresponding source of your modified version, at no charge.
+
+Removing or obscuring the "AI Gateway" attribution, or shipping a modified
+version under a different license, is not permitted by AGPL-3.0.
+
+Commercial licensing
+--------------------
+
+The SLM Company holds the copyright to this work and can license it on other
+terms. If the AGPL-3.0 network-copyleft obligations do not fit your use — for
+example, embedding AI Gateway in a proprietary product or operating it as a
+managed service without publishing your modifications — contact us for a
+commercial license: https://gateway.theslmcompany.com/
