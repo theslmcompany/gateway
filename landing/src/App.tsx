@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route } from 'react-router'
 import CompanyIntro from './CompanyIntro'
 import AIGatewayLanding from './AIGatewayLanding'
 import './index.css'

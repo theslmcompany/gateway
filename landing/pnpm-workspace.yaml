@@ -9,10 +9,10 @@
 # brace-expansion / js-yaml arrive via eslint and typescript-eslint. Build-time
 # only, but cheap to pin.
 #
-# Accepted risk: react-router GHSA-qwww-vcr4-c8h2 (RSC-mode CSRF bypass) is
-# fixed only in react-router 8. This app is a client-side SPA using
-# BrowserRouter — it never runs RSC mode — so the advisory is unreachable.
-# Revisit if this app ever adopts a React Router framework / RSC setup.
+# react-router GHSA-qwww-vcr4-c8h2 was previously carried here as an accepted
+# risk (RSC-mode only, and this is a client-side BrowserRouter SPA). It is now
+# actually fixed — migrated to react-router 8 — so the allowlist entry is gone.
+# Nothing in this workspace is allowlisted any more.
 overrides:
   websocket-driver: '>=0.7.5'
   '@grpc/grpc-js': '>=1.14.4'
@@ -22,10 +22,3 @@ overrides:
   js-yaml: '>=4.3.0'
   # Dev-only, via eslint-plugin-react-hooks. GHSA-4x5r-pxfx-6jf8.
   '@babel/core': '>=7.29.6'
-
-# Accepted-risk allowlist for the CI audit gate. Each entry must have a written
-# justification above; anything not listed here fails the build.
-auditConfig:
-  ignoreGhsas:
-    # react-router RSC-mode CSRF bypass — unreachable, see note above.
-    - GHSA-qwww-vcr4-c8h2

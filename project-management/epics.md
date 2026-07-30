@@ -22,8 +22,8 @@ _Last reconciled against source: 2026-07-29 (branch `feature/actions-firebase`).
 | E10 Agent Auth | 0 | 0 | 10 | Nothing started |
 | E11 `aigw` CLI | 3 | 2 | 9 | Usable CLI; no hardware keys or distribution |
 | E12 MCP Admin Server | 0 | 0 | 10 | Nothing started |
-| **E13 Vuln Scan & Remediation** | 8 | 3 | 0 | CI gate green; **gitleaks disabled**; 2 leaked secrets need rotation |
-| **Total** | **16** | **14** | **70** | 100 stories |
+| **E13 Vuln Scan & Remediation** | 9 | 2 | 0 | 5 findings left, all accepted; **gitleaks job disabled** |
+| **Total** | **17** | **13** | **70** | 100 stories |
 
 **Highest-leverage next moves:**
 1. **Rotate the two credentials in local git history** (Google OAuth client secret, `JWT_SECRET`) — see the escalation under E13.S11. Not exposed on any remote, but both are live.
@@ -341,9 +341,9 @@ GitHub reported **131 alerts on `master`** after the first push. That number pre
 | `backend/services/mlrunner/requirements.txt` | 75 | 2 | 0 |
 | `cli/go.mod` | 6 | 1 | 0 |
 | `frontend/pnpm-lock.yaml` | 70 | 0 | 0 |
-| `landing/pnpm-lock.yaml` | 29 | 2 | 1 |
+| `landing/pnpm-lock.yaml` | 29 | 2 | 0 |
 | `docs/pnpm-lock.yaml` | 5 | 4 | 4 |
-| **Total** | **236** | **12** | **6** |
+| **Total** | **236** | **12** | **5** |
 
 **A further four fixed in this pass** — all missed first time because the reachability-filtered gates rated them unreachable and stayed green:
 - `klauspost/compress` 1.18.3 → 1.18.7, `golang.org/x/net` 0.55.0 → 0.56.0 (`x/crypto` came along to 0.53.0).
@@ -351,13 +351,14 @@ GitHub reported **131 alerts on `master`** after the first push. That number pre
 - `idna` pinned to 3.18 in the sidecar. Subtle one: `pip-audit` reported clean because it resolves transitives the way pip does (newest compatible), while Dependabot and osv-scanner assume the **minimum** satisfying version — 3.9.0, which carries GHSA-65pc-fj4g-8rjx. An explicit pin makes the safe version true under every resolver. Worth remembering for any other unpinned transitive.
 - `@babel/core` override in `landing` (dev-only, GHSA-4x5r-pxfx-6jf8).
 
-**The remaining 6 are accepted, and will not clear by bumping:**
+**Follow-up pass (2026-07-30): 6 → 5.** `react-router` is no longer an accepted risk — v8.3.0 went stable, so `landing` migrated to it (`react-router-dom@7` → `react-router@8`, three import sites, `react`/`react-dom` to >= 19.2.7 for the new peer range). Verified against a real browser rather than a passing build: both routes render byte-identical output to the pre-migration bundle (923 and 6347 chars), `Link` still does a client-side transition with no full reload, back-button works, zero page errors. `landing` now reports **zero advisories at any severity with nothing allowlisted** — its `auditConfig.ignoreGhsas` block is gone.
+
+**The remaining 5 are accepted, and will not clear by bumping:**
 
 | Finding | Why it stays |
 |---|---|
 | `golang.org/x/crypto` GO-2026-5932 | **Unfixable.** Not a CVE — an advisory that `x/crypto/openpgp` is permanently unmaintained and unsafe by design. The affected range is `introduced: 0` with **no fixed version**, so every future bump keeps it. The gateway does not import openpgp; `govulncheck` confirms it unreachable. |
 | `vite` ×3 + `esbuild` (`docs`) | vitepress 1.6.4 depends on `vite ^5.4.14`; 6.x/8.x switch to rolldown and break the build (verified), and vitepress 2 is alpha. Dev-server only — never `vitepress build`, never production. |
-| `react-router` GHSA-qwww-vcr4-c8h2 (`landing`) | RSC-mode only; `landing` is a client-side `BrowserRouter` SPA. Fix requires the react-router 8 major. The migration is small for this surface (`BrowserRouter`/`Routes`/`Route`/`Link`) if the alert is worth closing. |
 
 **Corrections to the baseline's JS analysis.** "All transitive via `firebase`" was wrong in two places: `axios` (6 highs) and `react-router` (1 high) are **direct runtime dependencies** of `frontend` and `landing` respectively, not tree-shaken transitives. Both were missed because the analysis stopped at the most common root. The firebase claim itself held up — the vulnerable subtrees are confirmed absent from `frontend/dist` and `landing/dist`.
 
@@ -406,7 +407,7 @@ Tooling used: `govulncheck` (via `go run golang.org/x/vuln/cmd/govulncheck@lates
     - Done. The re-verification was the point: it found the `aigw logout` bug above. `store_test.go` now round-trips both credentials and cached proxy keys through the file backend; `AIGW_KEYRING_BACKEND` was added to pin the backend for tests and headless machines.
 - [x] **E13.S6: JS Workspace Remediation:** Confirm the `firebase` transitives are absent from built bundles, then bump/override. Document any accepted-risk leftovers.
     - Bundle check confirmed: no `websocket-driver`, `@grpc/grpc-js`, `protobufjs` or `faye-websocket` in `frontend/dist` or `landing/dist`. Pinned via `overrides` anyway so a future `firebase/firestore` import can't silently reintroduce them. Also bumped the **direct** deps the baseline missed (`axios` 1.15.2 → 1.18.1, `firebase`, `vite`, `shadcn`). Every workspace builds green.
-    - _Accepted risk:_ `react-router` GHSA-qwww-vcr4-c8h2 (landing) — RSC-mode only, and landing is a `BrowserRouter` SPA; the fix is a react-router 8 major. Four `vite`/`esbuild` dev-server advisories (docs) — vitepress 1.6.4 pins `vite ^5.4.14`, 6.x/8.x switch to rolldown and break the build, vitepress 2 is alpha. All five are allowlisted with reasoning in the respective `pnpm-workspace.yaml`.
+    - _Accepted risk:_ four `vite`/`esbuild` dev-server advisories in `docs` — vitepress 1.6.4 pins `vite ^5.4.14`, 6.x/8.x switch to rolldown and break the build, and vitepress 2 is still `2.0.0-alpha.18`. Allowlisted with reasoning in `docs/pnpm-workspace.yaml`. `frontend` and `landing` allowlist nothing.
 - [x] **E13.S7: Python Sidecar Scan:** Get `pip-audit` working against `services/mlrunner/requirements.txt`.
     - `pip-audit` still aborts locally (the `ensurepip` SIGABRT is in this machine's uv-managed CPython, not the tool) — assessed by querying OSV directly instead, which found **36 advisories across 4 of the 8 pins**, the worst surface in the repo. Remediated: `transformers` 4.52.3 → 5.14.1, `torch` 2.7.0 → 2.13.0, `sentencepiece` 0.2.0 → 0.2.1, `protobuf` 5.29.4 → 5.29.6. All 8 pins now return zero OSV findings and all support the Dockerfile's Python 3.11. The transformers 5.x major was de-risked by loading the pinned model's tokenizer and config against 5.14.1: it resolves cleanly, and 5.x provides `TokenizersBackend` natively — the `registry.py` monkey-patch that faked it is now a no-op. **Not verified:** the model *weights* load (1.2 GB + torch), so run the sidecar once before shipping.
     - The CI `pip-audit` job runs on a stock GitHub runner and is unaffected by the local crash.
@@ -415,9 +416,11 @@ Tooling used: `govulncheck` (via `go run golang.org/x/vuln/cmd/govulncheck@lates
     - _Still partial:_ base images are pinned to **tags, not digests**, so a rebuild can silently pick up a different layer. `node:22-alpine` still carries HIGH/CRITICAL findings in its bundled npm tooling; it is a builder stage only and none of it reaches the shipped nginx image, so the gate does not see it — worth revisiting if the build stage ever ships.
 - [x] **E13.S9: Go SAST Pass:** Run `gosec` + `staticcheck` across both modules and fix real findings.
     - Both modules clean at `-severity=medium`. Real fixes: the tenant API key disclosure, the loopback XSS, the `0755` config dir, and the `"claims"` context key (all detailed above), plus three staticcheck nits. Three `#nosec` annotations remain in `cli/internal/cmd/env.go`, each justified inline — `aigw run` executing the operator's own command and `--write` targeting the operator's own path are the features, not vulnerabilities.
-- [~] **E13.S10: Automated Dependency Drift:** Enable Dependabot or Renovate for all six manifests (2 × `go.mod`, 3 × `package.json`, 1 × `requirements.txt`) plus Docker base images. Grouped weekly PRs, auto-merge on green for patch-level bumps.
-    - _Partial — correction to the earlier "nothing started" note:_ Dependabot **is already running**, via GitHub security updates rather than a config file. `origin` carries open branches for `pgx`, `x/crypto`, `x/net`, `grpc`, `axios`, `torch` and `transformers` — the same bumps this pass made by hand, which is why several landed as duplicates.
-    - _Missing:_ no `.github/dependabot.yml`, so there is no coverage of Docker base images (exactly the drift that produced the stale `nginx:1.27-alpine` findings), no grouping, no schedule control, and no auto-merge.
+- [x] **E13.S10: Automated Dependency Drift:** Enable Dependabot or Renovate for all six manifests (2 × `go.mod`, 3 × `package.json`, 1 × `requirements.txt`) plus Docker base images. Grouped weekly PRs.
+    - `.github/dependabot.yml` covers all five ecosystems: `gomod` (backend, cli), `npm` (frontend, landing, docs), `pip` (mlrunner), `docker` (all four Dockerfiles) and `github-actions`. Weekly, grouped per ecosystem so a week's bumps arrive as one reviewable PR.
+    - _Correction to the earlier "nothing started" note:_ Dependabot **was already running** via GitHub security updates — `origin` carried open branches for `pgx`, `x/crypto`, `x/net`, `grpc`, `axios`, `torch` and `transformers`, the same bumps this epic made by hand, which is why several landed as duplicates. What was missing was the config file, and with it any coverage of **Docker base images** — precisely the gap that let `nginx:1.27-alpine` sit on a CRITICAL OpenSSL advisory while every other gate stayed green.
+    - JS updates are split into production vs development groups: a runtime bump ships to users and deserves a closer read than a linter bump. `torch` and `transformers` are excluded from grouping — a major bump there needs the model load re-checked by hand.
+    - _Not done:_ auto-merge on green for patch-level bumps. That needs branch-protection rules configured on the repo, not a file in it.
 - [~] **E13.S11: Secret Scanning:** Enable GitHub push protection + a `gitleaks` CI job.
     - **⚠️ Currently DISABLED** (`if: false` in `security-scan.yml`), at the repo owner's request pending a gitleaks licence. **There is no secret scanning in CI while this is off.** Re-enable by deleting that one line — the job is fully configured and was verified passing.
     - _Note for whoever picks this up:_ a licence is **not** required. The job runs the gitleaks **OSS binary** (MIT), not `gitleaks/gitleaks-action` — the *action* is the part that demands a paid `GITLEAKS_LICENSE` on org-owned repos. Running the binary directly is free for organizations, so the job can be switched back on without buying anything.

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { FormEvent, ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
