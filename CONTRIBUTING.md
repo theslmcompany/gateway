@@ -132,7 +132,7 @@ pnpm build
 ### Developer Certificate of Origin
 
 By submitting a PR you certify that you wrote the code or have the right to
-submit it under the project's [Apache 2.0 license](LICENSE). Sign off your
+submit it under the project's [AGPL-3.0 license](LICENSE). Sign off your
 commits with `git commit -s` (adds a `Signed-off-by` line).
 
 ---
