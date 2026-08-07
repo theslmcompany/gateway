@@ -18,7 +18,7 @@ overrides:
   '@grpc/grpc-js': '>=1.14.4'
   protobufjs: '>=7.6.5 <8'
   '@protobufjs/utf8': '>=1.1.1'
-  brace-expansion: '>=5.0.8'
-  js-yaml: '>=4.3.0'
+  brace-expansion: '>=5.0.9'
+  js-yaml: '>=4.3.1'
   # Dev-only, via eslint-plugin-react-hooks. GHSA-4x5r-pxfx-6jf8.
   '@babel/core': '>=7.29.6'
