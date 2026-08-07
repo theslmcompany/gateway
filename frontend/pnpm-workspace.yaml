@@ -8,8 +8,19 @@ onlyBuiltDependencies:
 # firebase/analytics, so the vulnerable code is tree-shaken out of the shipped
 # bundle — pinned anyway so `pnpm audit` stays clean and a future import of
 # those modules cannot silently reintroduce the CVEs.
+#
+# fast-uri / brace-expansion / js-yaml / hono all arrive via `shadcn`, which is
+# an authoring-time CLI (`pnpm shadcn add ...`) — it is never imported by src/
+# and never reaches the shipped bundle. Pinned anyway so the audit gate stays
+# clean. Ranges are held inside the major each parent asks for, except
+# brace-expansion: the 4.x line has no patch, so >=5.0.9 is the only fix (5.x
+# is dual ESM/CJS, a superset of 4.x's ESM-only entry point).
 overrides:
   websocket-driver: '>=0.7.5'
   '@grpc/grpc-js': '>=1.14.4'
   protobufjs: '>=7.6.5 <8'
   '@protobufjs/utf8': '>=1.1.1'
+  fast-uri: '>=3.1.5 <4'
+  brace-expansion: '>=5.0.9'
+  js-yaml: '>=4.3.1 <5'
+  hono: '>=4.12.34'
