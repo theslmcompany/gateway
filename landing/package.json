@@ -12,7 +12,7 @@
     "deploy": "pnpm build && firebase deploy --only hosting"
   },
   "dependencies": {
-    "firebase": "^12.16.0",
+    "firebase": "^12.17.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router": "^8.3.0"
