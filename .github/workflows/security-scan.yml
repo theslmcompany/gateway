@@ -34,8 +34,8 @@ jobs:
       matrix:
         module: [backend, cli]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: ${{ matrix.module }}/go.sum
@@ -54,8 +54,8 @@ jobs:
       matrix:
         module: [backend, cli]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: ${{ matrix.module }}/go.sum
@@ -78,11 +78,11 @@ jobs:
       run:
         working-directory: ${{ matrix.workspace }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
         with:
           version: 10
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -104,8 +104,8 @@ jobs:
     name: pip-audit (mlrunner)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12" # matches services/mlrunner/Dockerfile
       - name: Install pip-audit
@@ -131,7 +131,7 @@ jobs:
             context: docs
             dockerfile: docs/Dockerfile
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build image
         run: docker build -t scan-target:${{ matrix.image.name }} -f ${{ matrix.image.dockerfile }} ${{ matrix.image.context }}
       - name: Scan image
@@ -150,7 +150,7 @@ jobs:
     name: trivy (mlrunner base image)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Scan python:3.12-slim
         uses: aquasecurity/trivy-action@v0.36.0
         with:
@@ -182,7 +182,7 @@ jobs:
     if: false # ← delete this line to re-enable
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # full history — gitleaks scans commits, not the tree
       # Allowlist of known-benign matches lives in .gitleaks.toml.
