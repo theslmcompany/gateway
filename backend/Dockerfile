@@ -1,7 +1,7 @@
 # ── Build stage ────────────────────────────────────────────────────────────────
 # BUILDPLATFORM = host platform (fast native compile)
 # TARGETPLATFORM/TARGETARCH = destination platform (what Docker is building for)
-FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS builder
 
 ARG TARGETARCH
 ARG TARGETOS=linux
@@ -21,7 +21,7 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
     -o /app/gateway ./cmd/gateway
 
 # ── Runtime stage ───────────────────────────────────────────────────────────────
-FROM alpine:3.21
+FROM alpine:3.24
 
 # Add ca-certificates for HTTPS and wget for healthchecks
 RUN apk add --no-cache ca-certificates tzdata wget
