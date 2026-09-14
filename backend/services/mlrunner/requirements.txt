@@ -8,7 +8,7 @@ uvicorn[standard]==0.34.3
 # transformers 5.x: clears CVE-2026-4372 and CVE-2026-5241 (arbitrary code
 # execution during model loading) plus the 4.x ReDoS set. 5.x also provides
 # TokenizersBackend natively, which the registry.py shim was faking.
-transformers==5.14.1
+transformers==5.17.0
 # torch 2.13.0: clears CVE-2025-2999/3000/3001/3730, CVE-2025-55551..55560
 # and CVE-2026-24747.
 torch==2.13.0
