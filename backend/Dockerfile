@@ -21,7 +21,7 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
     -o /app/gateway ./cmd/gateway
 
 # ── Runtime stage ───────────────────────────────────────────────────────────────
-FROM alpine:3.21
+FROM alpine:3.24
 
 # Add ca-certificates for HTTPS and wget for healthchecks
 RUN apk add --no-cache ca-certificates tzdata wget
